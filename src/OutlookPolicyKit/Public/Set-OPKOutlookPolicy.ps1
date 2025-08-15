@@ -1,109 +1,217 @@
 function Set-OPKOutlookPolicy {
     <#
     .SYNOPSIS
-        Sets Outlook policy settings on the system
+        Sets Outlook policy settings using ProviderRouter
     
     .DESCRIPTION
-        This function applies Outlook policy settings to the system
-        using appropriate methods for Windows (registry) and macOS (plists).
-        Supports both individual policy settings and bulk configuration.
+        This function applies Outlook policy settings using the ProviderRouter.
+        Supports individual policy settings via -Name/-Value or bulk application
+        from baseline files. Includes -WhatIf support for testing changes.
     
-    .PARAMETER ComputerName
-        Specifies the computer name to configure. Defaults to localhost.
+    .PARAMETER Name
+        The name of a specific policy to set
     
-    .PARAMETER PolicySettings
-        Hashtable containing policy settings to apply
+    .PARAMETER Value
+        The value to set for the specified policy
     
-    .PARAMETER ConfigFile
-        Path to a configuration file containing policy definitions
+    .PARAMETER BaselinePath
+        Path to a baseline JSON file to apply all policies from
+    
+    .PARAMETER Platform
+        Target platform (Windows or macOS). Auto-detected if not specified.
+    
+    .PARAMETER Scope
+        For Windows: Machine or User scope (default: Machine)
     
     .PARAMETER WhatIf
-        Shows what would happen if the command runs without making changes
+        Shows what changes would be made without actually applying them
+    
+    .PARAMETER Confirm
+        Prompts for confirmation before making changes
     
     .EXAMPLE
-        Set-OPKOutlookPolicy -PolicySettings @{DisableOutlookToday = $true}
-        Applies the specified policy setting to disable Outlook Today
+        Set-OPKOutlookPolicy -Name 'DisableExternalImages' -Value $true
+        Sets a specific policy value
     
     .EXAMPLE
-        Set-OPKOutlookPolicy -ConfigFile 'C:\Config\OutlookPolicies.json'
-        Applies policies from the specified configuration file
+        Set-OPKOutlookPolicy -BaselinePath 'C:\baselines\windows-secure.json' -WhatIf
+        Shows what policies would be applied from the baseline without making changes
+    
+    .EXAMPLE
+        Set-OPKOutlookPolicy -Name 'CachedMode' -Value $true -Platform Windows -Scope User
+        Sets cached mode for the current user on Windows
     
     .NOTES
         Author: OutlookPolicyKit Team
-        Version: 0.1.0
-        Requires: Administrative privileges for system-wide changes
+        Version: 0.2.0
+        Requires: Appropriate privileges for the target scope
     #>
     
-    [CmdletBinding(SupportsShouldProcess)]
+    [CmdletBinding(DefaultParameterSetName = 'SinglePolicy', SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
     param(
-        [Parameter(ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
-        [Alias('CN', 'Computer')]
-        [string]$ComputerName = $env:COMPUTERNAME,
+        [Parameter(ParameterSetName = 'SinglePolicy', Mandatory = $true)]
+        [string]$Name,
         
-        [Parameter(ParameterSetName = 'PolicySettings')]
-        [hashtable]$PolicySettings,
+        [Parameter(ParameterSetName = 'SinglePolicy', Mandatory = $true)]
+        $Value,
         
-        [Parameter(ParameterSetName = 'ConfigFile')]
-        [ValidateScript({Test-Path $_})]
-        [string]$ConfigFile
+        [Parameter(ParameterSetName = 'Baseline', Mandatory = $true)]
+        [ValidateScript({Test-Path $_ -PathType Leaf})]
+        [string]$BaselinePath,
+        
+        [Parameter()]
+        [ValidateSet('Windows', 'macOS')]
+        [string]$Platform,
+        
+        [Parameter()]
+        [ValidateSet('Machine', 'User')]
+        [string]$Scope = 'Machine'
     )
     
     begin {
         Write-Verbose "Starting Set-OPKOutlookPolicy function"
         
-        if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] 'Administrator')) {
-            Write-Warning "Administrative privileges may be required for system-wide policy changes"
+        # Auto-detect platform if not specified
+        if (-not $Platform) {
+            $Platform = if ($IsWindows) { 'Windows' } elseif ($IsMacOS) { 'macOS' } else { 'Windows' }
+            Write-Verbose "Auto-detected platform: $Platform"
         }
+        
+        # Initialize results tracking
+        $results = @()
+        $successCount = 0
+        $failureCount = 0
     }
     
     process {
         try {
-            Write-Verbose "Applying Outlook policies to $ComputerName"
-            
-            # Initialize variables to satisfy PSScriptAnalyzer
-            $ConfigData = $null
-            $PolicyData = $null
-            
-            # Handle ConfigFile parameter
-            if ($PSBoundParameters.ContainsKey('ConfigFile')) {
-                Write-Verbose "Loading configuration from file: $ConfigFile"
-                # TODO: Implement config file loading
-                $ConfigData = @{Source = $ConfigFile; Loaded = $false}
-            }
-            
-            # Handle PolicySettings parameter  
-            if ($PSBoundParameters.ContainsKey('PolicySettings')) {
-                Write-Verbose "Processing policy settings (Count: $($PolicySettings.Count))"
-                $PolicyData = $PolicySettings
-            }
-            
-            if ($PSCmdlet.ShouldProcess($ComputerName, "Apply Outlook Policy Settings")) {
-                # TODO: Implement policy application logic
-                # - Validate policy settings
-                # - Check platform compatibility
-                # - Apply settings via appropriate method (registry/plist)
-                # - Verify application success
-                
-                $Result = [PSCustomObject]@{
-                    ComputerName = $ComputerName
-                    Status = 'NotImplemented'
-                    Message = 'Function skeleton - implementation pending'
-                    ConfigFile = if ($ConfigData) { $ConfigData.Source } else { $null }
-                    PolicyCount = if ($PolicyData) { $PolicyData.Count } else { 0 }
-                    AppliedPolicies = @()
-                    Errors = @()
+            switch ($PSCmdlet.ParameterSetName) {
+                'SinglePolicy' {
+                    Write-Verbose "Setting single policy: $Name = $Value"
+                    
+                    if ($PSCmdlet.ShouldProcess("$Platform policy '$Name'", "Set value to '$Value'")) {
+                        $success = Set-OPKPolicy -Platform $Platform -Name $Name -Value $Value -Scope $Scope
+                        
+                        if ($success) {
+                            $successCount++
+                            Write-Information "Successfully set $Name = $Value" -InformationAction Continue
+                            
+                            $results += [PSCustomObject]@{
+                                PolicyName = $Name
+                                Value = $Value
+                                Platform = $Platform
+                                Scope = $Scope
+                                Status = 'Success'
+                                Message = 'Policy applied successfully'
+                            }
+                        } else {
+                            $failureCount++
+                            Write-Warning "Failed to set $Name = $Value"
+                            
+                            $results += [PSCustomObject]@{
+                                PolicyName = $Name
+                                Value = $Value
+                                Platform = $Platform
+                                Scope = $Scope
+                                Status = 'Failed'
+                                Message = 'Failed to apply policy'
+                            }
+                        }
+                    } else {
+                        Write-Information "Would set $Name = $Value (WhatIf)" -InformationAction Continue
+                        $results += [PSCustomObject]@{
+                            PolicyName = $Name
+                            Value = $Value
+                            Platform = $Platform
+                            Scope = $Scope
+                            Status = 'WhatIf'
+                            Message = 'Would apply this policy'
+                        }
+                    }
                 }
                 
-                return $Result
+                'Baseline' {
+                    Write-Verbose "Processing baseline from: $BaselinePath"
+                    
+                    # Load baseline
+                    $baseline = Get-Content -Path $BaselinePath -Raw | ConvertFrom-Json
+                    
+                    # Validate baseline structure
+                    if (-not $baseline.policies) {
+                        throw "Invalid baseline file: missing 'policies' section"
+                    }
+                    
+                    Write-Information "Applying baseline: $($baseline.metadata.name) v$($baseline.metadata.version)" -InformationAction Continue
+                    
+                    foreach ($policy in $baseline.policies.PSObject.Properties) {
+                        $policyName = $policy.Name
+                        $policyValue = $policy.Value.value
+                        $severity = $policy.Value.severity
+                        
+                        Write-Verbose "Processing policy: $policyName = $policyValue (Severity: $severity)"
+                        
+                        $shouldProcessMessage = "Apply baseline policy '$policyName' = '$policyValue'"
+                        if ($PSCmdlet.ShouldProcess("$Platform baseline policies", $shouldProcessMessage)) {
+                            $success = Set-OPKPolicy -Platform $Platform -Name $policyName -Value $policyValue -Scope $Scope
+                            
+                            if ($success) {
+                                $successCount++
+                                Write-Verbose "Successfully applied $policyName = $policyValue"
+                                
+                                $results += [PSCustomObject]@{
+                                    PolicyName = $policyName
+                                    Value = $policyValue
+                                    Platform = $Platform
+                                    Scope = $Scope
+                                    Severity = $severity
+                                    Status = 'Success'
+                                    Message = 'Policy applied successfully'
+                                }
+                            } else {
+                                $failureCount++
+                                Write-Warning "Failed to apply $policyName = $policyValue"
+                                
+                                $results += [PSCustomObject]@{
+                                    PolicyName = $policyName
+                                    Value = $policyValue
+                                    Platform = $Platform
+                                    Scope = $Scope
+                                    Severity = $severity
+                                    Status = 'Failed'
+                                    Message = 'Failed to apply policy'
+                                }
+                            }
+                        } else {
+                            Write-Information "Would apply $policyName = $policyValue (WhatIf)" -InformationAction Continue
+                            $results += [PSCustomObject]@{
+                                PolicyName = $policyName
+                                Value = $policyValue
+                                Platform = $Platform
+                                Scope = $Scope
+                                Severity = $severity
+                                Status = 'WhatIf'
+                                Message = 'Would apply this policy'
+                            }
+                        }
+                    }
+                }
             }
         }
         catch {
-            Write-Error "Failed to apply Outlook policies: $($_.Exception.Message)"
+            Write-Error "Failed to set Outlook policies: $($_.Exception.Message)"
             return $null
         }
     }
     
     end {
+        # Output summary
+        if (-not $WhatIfPreference) {
+            Write-Information "Policy application completed: $successCount succeeded, $failureCount failed" -InformationAction Continue
+        }
+        
         Write-Verbose "Completed Set-OPKOutlookPolicy function"
+        
+        # Return results for further processing if needed
+        return $results | Sort-Object PolicyName
     }
 }
