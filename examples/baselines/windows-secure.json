@@ -1,0 +1,60 @@
+{
+  "$schema": "../src/OutlookPolicyKit/Private/Schema/Baseline.schema.json",
+  "id": "windows-secure-baseline-v1",
+  "displayName": "Windows Secure Outlook Baseline",
+  "description": "A comprehensive security-focused baseline for Microsoft Outlook on Windows platforms. Implements security best practices including blocking external content, enforcing safe image handling, and configuring secure email processing.",
+  "version": "1.0.0",
+  "platform": "Windows",
+  "category": "Security",
+  "author": {
+    "name": "OutlookPolicyKit Team",
+    "organization": "OutlookPolicyKit"
+  },
+  "metadata": {
+    "createdDate": "2025-08-15T17:00:00Z",
+    "lastModified": "2025-08-15T17:00:00Z",
+    "tags": ["security", "windows", "enterprise", "baseline"]
+  },
+  "settings": [
+    {
+      "name": "DisableExternalImages",
+      "expectedValue": 1,
+      "type": "DWORD",
+      "scope": "Machine",
+      "description": "Block external content in HTML emails to prevent tracking and malicious content",
+      "category": "Security",
+      "severity": "High",
+      "remediate": true
+    },
+    {
+      "name": "BlockUnsafeHTML",
+      "expectedValue": 1,
+      "type": "DWORD",
+      "scope": "Machine",
+      "description": "Block HTTP images in HTML emails to enforce HTTPS-only content",
+      "category": "Security", 
+      "severity": "High",
+      "remediate": true
+    },
+    {
+      "name": "CachedMode",
+      "expectedValue": 1,
+      "type": "DWORD",
+      "scope": "Machine",
+      "description": "Enable Exchange cached mode for improved performance and offline access",
+      "category": "Performance",
+      "severity": "Medium",
+      "remediate": true
+    },
+    {
+      "name": "SyncWindowDays",
+      "expectedValue": 90,
+      "type": "DWORD",
+      "scope": "Machine",
+      "description": "Limit email sync to 90 days to balance storage and compliance requirements",
+      "category": "Compliance",
+      "severity": "Low",
+      "remediate": true
+    }
+  ]
+}
