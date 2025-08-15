@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+  workflow_dispatch:
+
+env:
+  POWERSHELL_VERSION: '7.4.0'
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        powershell-version: [7.4.0]
+    
+    name: Test on ${{ matrix.os }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup PowerShell
+      shell: pwsh
+      run: |
+        Write-Host "PowerShell version: $($PSVersionTable.PSVersion)"
+        Write-Host "Platform: $($PSVersionTable.Platform)"
+    
+    - name: Install required modules
+      shell: pwsh
+      run: |
+        Set-PSRepository PSGallery -InstallationPolicy Trusted
+        Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
+        Install-Module -Name Pester -Force -Scope CurrentUser -MinimumVersion 5.0.0
+        
+    - name: Run PSScriptAnalyzer
+      shell: pwsh
+      run: |
+        Write-Host "Running PSScriptAnalyzer..."
+        $analysisResults = Invoke-ScriptAnalyzer -Path './src/' -Recurse -Severity Warning,Error
+        if ($analysisResults) {
+          $analysisResults | Format-Table -AutoSize
+          Write-Error "PSScriptAnalyzer found issues. Please fix them."
+        } else {
+          Write-Host "PSScriptAnalyzer passed with no issues." -ForegroundColor Green
+        }
+        
+    - name: Run Pester tests
+      shell: pwsh
+      run: |
+        Write-Host "Running Pester tests..."
+        $testResults = Invoke-Pester -Path './tests/' -OutputFormat NUnitXml -OutputFile 'TestResults.xml' -PassThru
+        if ($testResults.FailedCount -gt 0) {
+          Write-Error "$($testResults.FailedCount) Pester test(s) failed."
+        } else {
+          Write-Host "All Pester tests passed." -ForegroundColor Green
+        }
+        
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-${{ matrix.os }}
+        path: TestResults.xml
+        
+  build:
+    runs-on: windows-latest
+    needs: test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Import module
+      shell: pwsh
+      run: |
+        Write-Host "Testing module import..."
+        Import-Module './src/OutlookPolicyKit/OutlookPolicyKit.psd1' -Force
+        Get-Module OutlookPolicyKit
+        Get-Command -Module OutlookPolicyKit
+        
+    - name: Test module functions
+      shell: pwsh
+      run: |
+        Import-Module './src/OutlookPolicyKit/OutlookPolicyKit.psd1' -Force
+        Write-Host "Testing Get-OPKOutlookPolicy..."
+        $result = Get-OPKOutlookPolicy -Verbose
+        Write-Host "Result: $($result | ConvertTo-Json -Depth 2)"
+        
+        Write-Host "Testing Set-OPKOutlookPolicy..."
+        $setResult = Set-OPKOutlookPolicy -PolicySettings @{TestPolicy = $true} -WhatIf -Verbose
+        Write-Host "Set Result: $($setResult | ConvertTo-Json -Depth 2)"
