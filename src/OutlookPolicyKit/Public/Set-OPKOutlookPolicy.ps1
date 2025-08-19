@@ -51,8 +51,25 @@ function Set-OPKOutlookPolicy {
     begin {
         Write-Verbose "Starting Set-OPKOutlookPolicy function"
         
-        if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] 'Administrator')) {
-            Write-Warning "Administrative privileges may be required for system-wide policy changes"
+        # Cross-platform administrative privilege check
+        try {
+            if ($PSVersionTable.Platform -eq 'Win32NT' -or [System.Environment]::OSVersion.Platform -eq 'Win32NT' -or $IsWindows) {
+                # Windows platform - check for administrator privileges
+                if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] 'Administrator')) {
+                    Write-Warning "Administrative privileges may be required for system-wide policy changes"
+                }
+            } elseif ($PSVersionTable.Platform -eq 'Unix' -or $IsLinux -or $IsMacOS) {
+                # Unix/Linux/macOS platform - check for root privileges
+                $currentUser = [System.Environment]::UserName
+                if ($currentUser -ne 'root' -and (& id -u) -ne 0) {
+                    Write-Warning "Root privileges may be required for system-wide policy changes"
+                }
+            } else {
+                Write-Warning "Platform detection uncertain - administrative privileges may be required for system-wide policy changes"
+            }
+        }
+        catch {
+            Write-Warning "Unable to determine privilege level - administrative privileges may be required for system-wide policy changes"
         }
     }
     
