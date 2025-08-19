@@ -1,12 +1,10 @@
-<#
-.SYNOPSIS
+<#.SYNOPSIS
     Provider router for Outlook policy management
     
 .DESCRIPTION
     Routes policy get/set operations to appropriate platform-specific providers
     and provides friendly name mapping for Outlook policies.
 #>
-
 # Policy name mappings between friendly names and implementation details
 $script:PolicyMappings = @{
     # Windows Registry mappings
@@ -64,7 +62,6 @@ $script:PolicyMappings = @{
         }
     }
 }
-
 function Get-OPKPolicy {
     <#
     .SYNOPSIS
@@ -122,7 +119,6 @@ function Get-OPKPolicy {
         return $null
     }
 }
-
 function Set-OPKPolicy {
     <#
     .SYNOPSIS
@@ -136,7 +132,7 @@ function Set-OPKPolicy {
     .PARAMETER Scope
         For Windows: Machine or User (default: Machine)
     #>
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(Mandatory = $true)]
         [ValidateSet('Windows', 'macOS')]
@@ -161,13 +157,23 @@ function Set-OPKPolicy {
         
         $policyInfo = $script:PolicyMappings[$Platform][$Name]
         
-        switch ($Platform) {
-            'Windows' {
-                return Set-OPKWinPolicy -Name $policyInfo.Name -Value $Value -Scope $Scope -Type $policyInfo.Type
+        # Create descriptive target for ShouldProcess
+        $target = "$Platform policy '$Name' (Scope: $Scope)"
+        $action = "Set value to '$Value'"
+        
+        if ($PSCmdlet.ShouldProcess($target, $action)) {
+            switch ($Platform) {
+                'Windows' {
+                    return Set-OPKWinPolicy -Name $policyInfo.Name -Value $Value -Scope $Scope -Type $policyInfo.Type
+                }
+                'macOS' {
+                    return Set-OPKMacPolicy -Key $policyInfo.Key -Value $Value -Type $policyInfo.Type
+                }
             }
-            'macOS' {
-                return Set-OPKMacPolicy -Key $policyInfo.Key -Value $Value -Type $policyInfo.Type
-            }
+        }
+        else {
+            Write-Verbose "Operation cancelled by user"
+            return $false
         }
     }
     catch {
@@ -175,7 +181,6 @@ function Set-OPKPolicy {
         return $false
     }
 }
-
 function Get-OPKAvailablePolicies {
     <#
     .SYNOPSIS
