@@ -50,7 +50,7 @@ function Invoke-OPKRemediation {
         3 - Critical error (baseline file issues, permissions, etc.)
     #>
     
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(Mandatory = $true)]
         [ValidateScript({Test-Path $_ -PathType Leaf})]
@@ -186,84 +186,89 @@ function Invoke-OPKRemediation {
             
             # Phase 2: Remediation (if -Enforce is specified)
             if ($Enforce) {
-                Write-Information "Phase 2: Enforcing policy compliance..." -InformationAction Continue
-                
-                $remediationAttempts = 0
-                $remediationSuccesses = 0
-                $remediationFailures = 0
-                
-                foreach ($policy in $complianceResults | Where-Object { $_.Status -ne 'Compliant' }) {
-                    $remediationAttempts++
+                if ($PSCmdlet.ShouldProcess("Outlook Policy Settings", "Apply baseline remediation")) {
+                    Write-Information "Phase 2: Enforcing policy compliance..." -InformationAction Continue
                     
-                    if ($policy.AutoRemediate) {
-                        Write-Verbose "Remediating policy: $($policy.PolicyName) = $($policy.ExpectedValue)"
+                    $remediationAttempts = 0
+                    $remediationSuccesses = 0
+                    $remediationFailures = 0
+                    
+                    foreach ($policy in $complianceResults | Where-Object { $_.Status -ne 'Compliant' }) {
+                        $remediationAttempts++
                         
-                        try {
-                            $success = Set-OPKPolicy -Platform $Platform -Name $policy.PolicyName -Value $policy.ExpectedValue -Scope $Scope
+                        if ($policy.AutoRemediate) {
+                            Write-Verbose "Remediating policy: $($policy.PolicyName) = $($policy.ExpectedValue)"
                             
-                            if ($success) {
-                                $remediationSuccesses++
-                                Write-Information "✓ Remediated: $($policy.PolicyName)" -InformationAction Continue
+                            try {
+                                $success = Set-OPKPolicy -Platform $Platform -Name $policy.PolicyName -Value $policy.ExpectedValue -Scope $Scope
                                 
-                                $remediationResults += [PSCustomObject]@{
-                                    PolicyName = $policy.PolicyName
-                                    Action = 'Remediated'
-                                    OldValue = $policy.CurrentValue
-                                    NewValue = $policy.ExpectedValue
-                                    Success = $true
-                                    Message = 'Policy successfully remediated'
-                                    Timestamp = Get-Date -Format 'o'
+                                if ($success) {
+                                    $remediationSuccesses++
+                                    Write-Information "✓ Remediated: $($policy.PolicyName)" -InformationAction Continue
+                                    
+                                    $remediationResults += [PSCustomObject]@{
+                                        PolicyName = $policy.PolicyName
+                                        Action = 'Remediated'
+                                        OldValue = $policy.CurrentValue
+                                        NewValue = $policy.ExpectedValue
+                                        Success = $true
+                                        Message = 'Policy successfully remediated'
+                                        Timestamp = Get-Date -Format 'o'
+                                    }
+                                } else {
+                                    $remediationFailures++
+                                    Write-Warning "✗ Failed to remediate: $($policy.PolicyName)"
+                                    
+                                    $remediationResults += [PSCustomObject]@{
+                                        PolicyName = $policy.PolicyName
+                                        Action = 'Remediation Attempted'
+                                        OldValue = $policy.CurrentValue
+                                        NewValue = $policy.ExpectedValue
+                                        Success = $false
+                                        Message = 'Remediation failed'
+                                        Timestamp = Get-Date -Format 'o'
+                                    }
                                 }
-                            } else {
+                            } catch {
                                 $remediationFailures++
-                                Write-Warning "✗ Failed to remediate: $($policy.PolicyName)"
+                                Write-Error "Error remediating $($policy.PolicyName): $($_.Exception.Message)"
                                 
                                 $remediationResults += [PSCustomObject]@{
                                     PolicyName = $policy.PolicyName
-                                    Action = 'Remediation Attempted'
+                                    Action = 'Remediation Error'
                                     OldValue = $policy.CurrentValue
                                     NewValue = $policy.ExpectedValue
                                     Success = $false
-                                    Message = 'Remediation failed'
+                                    Message = $_.Exception.Message
                                     Timestamp = Get-Date -Format 'o'
                                 }
                             }
-                        } catch {
-                            $remediationFailures++
-                            Write-Error "Error remediating $($policy.PolicyName): $($_.Exception.Message)"
+                        } else {
+                            Write-Warning "⚠ Policy $($policy.PolicyName) is non-compliant but auto-remediation is disabled"
                             
                             $remediationResults += [PSCustomObject]@{
                                 PolicyName = $policy.PolicyName
-                                Action = 'Remediation Error'
+                                Action = 'Skipped'
                                 OldValue = $policy.CurrentValue
                                 NewValue = $policy.ExpectedValue
                                 Success = $false
-                                Message = $_.Exception.Message
+                                Message = 'Auto-remediation disabled for this policy'
                                 Timestamp = Get-Date -Format 'o'
                             }
                         }
-                    } else {
-                        Write-Warning "⚠ Policy $($policy.PolicyName) is non-compliant but auto-remediation is disabled"
-                        
-                        $remediationResults += [PSCustomObject]@{
-                            PolicyName = $policy.PolicyName
-                            Action = 'Skipped'
-                            OldValue = $policy.CurrentValue
-                            NewValue = $policy.ExpectedValue
-                            Success = $false
-                            Message = 'Auto-remediation disabled for this policy'
-                            Timestamp = Get-Date -Format 'o'
-                        }
                     }
-                }
-                
-                # Set exit code based on remediation results
-                if ($remediationFailures -gt 0) {
-                    $exitCode = 2  # Remediation failures occurred
-                } elseif ($nonCompliantPolicies + $missingPolicies -gt $remediationSuccesses) {
-                    $exitCode = 1  # Some non-compliance remains
+                    
+                    # Set exit code based on remediation results
+                    if ($remediationFailures -gt 0) {
+                        $exitCode = 2  # Remediation failures occurred
+                    } elseif ($nonCompliantPolicies + $missingPolicies -gt $remediationSuccesses) {
+                        $exitCode = 1  # Some non-compliance remains
+                    } else {
+                        $exitCode = 0  # Success
+                    }
                 } else {
-                    $exitCode = 0  # Success
+                    Write-Information "Remediation cancelled by user" -InformationAction Continue
+                    $exitCode = 1
                 }
             } else {
                 # Not enforcing - set exit code based on compliance
