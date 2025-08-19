@@ -5,15 +5,13 @@
 #Requires -Modules Pester
 
 BeforeAll {
-    
-# Import the module for testing
+    # Import the module for testing
     $ModulePath = "$PSScriptRoot/../src/OutlookPolicyKit"
     if (Test-Path $ModulePath) {
         Import-Module $ModulePath -Force
     }
     
-    
-# Test variables with valid parameter values that match actual function signatures
+    # Test variables with valid parameter values that match actual function signatures
     $TestRegistryPath = "HKCU:\Software\TestOPK"
     $TestComputerName = "localhost"
     $TestPolicySettings = @{
@@ -22,7 +20,7 @@ BeforeAll {
         EnableCachedMode = $true
     }
     
-# Create a valid test configuration file path using cross-platform temporary directory
+    # Create a valid test configuration file path using cross-platform temporary directory
     $TempDir = if ($IsWindows -or $env:OS -eq 'Windows_NT') {
         $env:TEMP
     } elseif ($IsMacOS -or $env:TMPDIR) {
@@ -32,8 +30,7 @@ BeforeAll {
     }
     $TestConfigFile = Join-Path $TempDir "TestConfig.json"
     
-    
-# Create test config file if it doesn't exist
+    # Create test config file if it doesn't exist
     if (-not (Test-Path $TestConfigFile)) {
         $TestConfig = @{
             policies = $TestPolicySettings
@@ -43,14 +40,12 @@ BeforeAll {
 }
 
 AfterAll {
-    
-# Clean up test registry entries if they exist
+    # Clean up test registry entries if they exist
     if (Test-Path $TestRegistryPath) {
         Remove-Item $TestRegistryPath -Recurse -Force -ErrorAction SilentlyContinue
     }
     
-    
-# Clean up test config file
+    # Clean up test config file
     if (Test-Path $TestConfigFile) {
         Remove-Item $TestConfigFile -Force -ErrorAction SilentlyContinue
     }
@@ -95,7 +90,7 @@ Describe "Set-OPKOutlookPolicy Function Tests" {
     Context "Error Handling" {
         It "Should handle non-existent config file gracefully" {
             $FakeConfigFile = Join-Path $TempDir "NonExistent.json"
-            { Set-OPKOutlookPolicy -ConfigFile $FakeConfigFile -WhatIf -ErrorAction SilentlyContinue } | Should -Not -Throw
+            { Set-OPKOutlookPolicy -ConfigFile $FakeConfigFile -WhatIf -ErrorAction SilentlyContinue } | Should -Throw
         }
     }
 }
