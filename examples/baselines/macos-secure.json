@@ -1,0 +1,56 @@
+{
+  "$schema": "../src/OutlookPolicyKit/Private/Schema/Baseline.schema.json",
+  "id": "macos-secure-baseline-v1",
+  "displayName": "macOS Secure Outlook Baseline",
+  "description": "A comprehensive security-focused baseline for Microsoft Outlook on macOS platforms. Implements security best practices using plist configuration for blocking external content, enforcing safe image handling, and optimizing performance.",
+  "version": "1.0.0",
+  "platform": "macOS",
+  "category": "Security",
+  "author": {
+    "name": "OutlookPolicyKit Team",
+    "organization": "OutlookPolicyKit"
+  },
+  "metadata": {
+    "createdDate": "2025-08-15T17:00:00Z",
+    "lastModified": "2025-08-15T17:00:00Z",
+    "tags": ["security", "macos", "enterprise", "baseline"]
+  },
+  "settings": [
+    {
+      "name": "DisableExternalImages",
+      "expectedValue": true,
+      "type": "bool",
+      "description": "Block external content in HTML emails to prevent tracking and malicious content",
+      "category": "Security",
+      "severity": "High",
+      "remediate": true
+    },
+    {
+      "name": "BlockUnsafeHTML",
+      "expectedValue": true,
+      "type": "bool",
+      "description": "Block HTTP images in HTML emails to enforce HTTPS-only content",
+      "category": "Security",
+      "severity": "High",
+      "remediate": true
+    },
+    {
+      "name": "CachedMode",
+      "expectedValue": true,
+      "type": "bool",
+      "description": "Enable Exchange cached mode for improved performance and offline access",
+      "category": "Performance",
+      "severity": "Medium",
+      "remediate": true
+    },
+    {
+      "name": "SyncWindowDays",
+      "expectedValue": 90,
+      "type": "int",
+      "description": "Limit email sync to 90 days to balance storage and compliance requirements",
+      "category": "Compliance",
+      "severity": "Low",
+      "remediate": true
+    }
+  ]
+}
