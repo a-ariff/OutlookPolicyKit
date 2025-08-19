@@ -61,20 +61,20 @@ function Set-OPKOutlookPolicy {
             Write-Verbose "Applying Outlook policies to $ComputerName"
             
             # Initialize variables to satisfy PSScriptAnalyzer
-            $ConfigData = $null
-            $PolicyData = $null
+            $configData = $null
+            $policyData = $null
             
             # Handle ConfigFile parameter
             if ($PSBoundParameters.ContainsKey('ConfigFile')) {
                 Write-Verbose "Loading configuration from file: $ConfigFile"
                 # TODO: Implement config file loading
-                $ConfigData = @{Source = $ConfigFile; Loaded = $false}
+                $configData = @{Source = $ConfigFile; Loaded = $false}
             }
             
             # Handle PolicySettings parameter  
             if ($PSBoundParameters.ContainsKey('PolicySettings')) {
                 Write-Verbose "Processing policy settings (Count: $($PolicySettings.Count))"
-                $PolicyData = $PolicySettings
+                $policyData = $PolicySettings
             }
             
             if ($PSCmdlet.ShouldProcess($ComputerName, "Apply Outlook Policy Settings")) {
@@ -84,17 +84,17 @@ function Set-OPKOutlookPolicy {
                 # - Apply settings via appropriate method (registry/plist)
                 # - Verify application success
                 
-                $Result = [PSCustomObject]@{
+                $result = [PSCustomObject]@{
                     ComputerName = $ComputerName
                     Status = 'NotImplemented'
                     Message = 'Function skeleton - implementation pending'
-                    ConfigFile = if ($ConfigData) { $ConfigData.Source } else { $null }
-                    PolicyCount = if ($PolicyData) { $PolicyData.Count } else { 0 }
-                    AppliedPolicies = @()
-                    Errors = @()
+                    ConfigFile = if ($configData) { $configData.Source } else { $null }
+                    PolicyCount = if ($policyData) { $policyData.Count } else { 0 }
+                    AppliedPolicyCollection = @()
+                    ErrorCollection = @()
                 }
                 
-                return $Result
+                return $result
             }
         }
         catch {
