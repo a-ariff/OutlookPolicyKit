@@ -51,15 +51,15 @@ function Get-OPKOutlookPolicy {
             # - Query appropriate policy stores
             # - Return structured policy data
             
-            $PolicyData = [PSCustomObject]@{
+            $policyData = [PSCustomObject]@{
                 ComputerName = $ComputerName
                 PolicyType = $PolicyType
-                Policies = @{}
+                PolicyCollection = @{}
                 Status = 'NotImplemented'
                 Message = 'Function skeleton - implementation pending'
             }
             
-            return $PolicyData
+            return $policyData
         }
         catch {
             Write-Error "Failed to retrieve Outlook policies: $($_.Exception.Message)"
