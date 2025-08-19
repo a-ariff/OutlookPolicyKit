@@ -141,7 +141,7 @@ function Get-OPKOutlookPolicy {
                             DefaultValue = $policy.DefaultValue
                             Platform = $Platform
                             Scope = $Scope
-                            IsSet = $current -ne $null
+                            IsSet = $null -ne $current
                         }
                     }
                     
